@@ -5,8 +5,8 @@ from rest_framework.decorators import api_view
 from django.core.cache import cache
 from django.conf import settings
 
-from users.models import User
-from users.serializers import UserSerializer
+from users.models import User, Passenger, Rider
+from users.serializers import UserSerializer, PassengerSerializer, RiderSerializer
 import functools
 import time
 import logging
@@ -157,3 +157,175 @@ def cache_stats(request):
             'status': 'error',
             'message': str(e)
         }, status=500)
+
+
+class PassengerViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Passengers with caching support.
+    
+    Implements caching for list and retrieve operations,
+    with automatic cache invalidation on create, update, and delete.
+    """
+    queryset = Passenger.objects.all()
+    serializer_class = PassengerSerializer
+
+    @cache_performance("passenger_list_cache")
+    def list(self, request, *args, **kwargs):
+        """Get list of all passengers with caching"""
+        # Step 1: Create cache key
+        cache_key = get_cache_key('passenger_list')
+        
+        # Step 2: Try to get from cache
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            logger.info(f"Cache HIT for {cache_key}")
+            return Response(cached_data)
+        
+        logger.info(f"Cache MISS for {cache_key}")
+        
+        # Step 3: Get fresh data from database
+        response = super().list(request, *args, **kwargs)
+        
+        # Step 4: Store in cache
+        cache.set(cache_key, response.data, timeout=settings.CACHE_TTL)
+        
+        return response
+
+    @cache_performance("passenger_detail_cache")
+    def retrieve(self, request, *args, **kwargs):
+        """Get individual passenger with caching"""
+        passenger_id = kwargs.get('pk')
+        cache_key = get_cache_key('passenger', passenger_id)
+        
+        # Try to get from cache
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            logger.info(f"Cache HIT for {cache_key}")
+            return Response(cached_data)
+        
+        logger.info(f"Cache MISS for {cache_key}")
+        
+        # Get fresh data
+        response = super().retrieve(request, *args, **kwargs)
+        
+        # Store in cache
+        cache.set(cache_key, response.data, timeout=settings.CACHE_TTL)
+        
+        return response
+
+    def perform_create(self, serializer):
+        """Clear relevant caches when creating a new passenger"""
+        cache.delete(get_cache_key('passenger_list'))
+        logger.info("Cleared passenger_list cache after create")
+        
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        """Clear both list and individual caches when updating"""
+        passenger_id = serializer.instance.id
+        
+        cache.delete(get_cache_key('passenger_list'))
+        cache.delete(get_cache_key('passenger', passenger_id))
+        
+        logger.info(f"Cleared caches for passenger {passenger_id} after update")
+        
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        """Clear caches when deleting a passenger"""
+        passenger_id = instance.id
+        
+        cache.delete(get_cache_key('passenger_list'))
+        cache.delete(get_cache_key('passenger', passenger_id))
+        
+        logger.info(f"Cleared caches for passenger {passenger_id} after delete")
+        
+        super().perform_destroy(instance)
+
+
+class RiderViewSet(viewsets.ModelViewSet):
+    """
+    ViewSet for managing Riders with caching support.
+    
+    Implements caching for list and retrieve operations,
+    with automatic cache invalidation on create, update, and delete.
+    """
+    queryset = Rider.objects.all()
+    serializer_class = RiderSerializer
+
+    @cache_performance("rider_list_cache")
+    def list(self, request, *args, **kwargs):
+        """Get list of all riders with caching"""
+        # Step 1: Create cache key
+        cache_key = get_cache_key('rider_list')
+        
+        # Step 2: Try to get from cache
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            logger.info(f"Cache HIT for {cache_key}")
+            return Response(cached_data)
+        
+        logger.info(f"Cache MISS for {cache_key}")
+        
+        # Step 3: Get fresh data from database
+        response = super().list(request, *args, **kwargs)
+        
+        # Step 4: Store in cache
+        cache.set(cache_key, response.data, timeout=settings.CACHE_TTL)
+        
+        return response
+
+    @cache_performance("rider_detail_cache")
+    def retrieve(self, request, *args, **kwargs):
+        """Get individual rider with caching"""
+        rider_id = kwargs.get('pk')
+        cache_key = get_cache_key('rider', rider_id)
+        
+        # Try to get from cache
+        cached_data = cache.get(cache_key)
+        
+        if cached_data is not None:
+            logger.info(f"Cache HIT for {cache_key}")
+            return Response(cached_data)
+        
+        logger.info(f"Cache MISS for {cache_key}")
+        
+        # Get fresh data
+        response = super().retrieve(request, *args, **kwargs)
+        
+        # Store in cache
+        cache.set(cache_key, response.data, timeout=settings.CACHE_TTL)
+        
+        return response
+
+    def perform_create(self, serializer):
+        """Clear relevant caches when creating a new rider"""
+        cache.delete(get_cache_key('rider_list'))
+        logger.info("Cleared rider_list cache after create")
+        
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        """Clear both list and individual caches when updating"""
+        rider_id = serializer.instance.id
+        
+        cache.delete(get_cache_key('rider_list'))
+        cache.delete(get_cache_key('rider', rider_id))
+        
+        logger.info(f"Cleared caches for rider {rider_id} after update")
+        
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        """Clear caches when deleting a rider"""
+        rider_id = instance.id
+        
+        cache.delete(get_cache_key('rider_list'))
+        cache.delete(get_cache_key('rider', rider_id))
+        
+        logger.info(f"Cleared caches for rider {rider_id} after delete")
+        
+        super().perform_destroy(instance)
