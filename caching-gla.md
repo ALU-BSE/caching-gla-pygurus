@@ -1,7 +1,9 @@
 # Comprehensive Caching Implementation Guide for Django SafeBoda
 
 ## **Learning Objectives**
+
 By the end of this activity, students will be able to:
+
 - Understand different types of caching in Django
 - Implement Redis-based caching for API endpoints
 - Create cache invalidation strategies
@@ -13,21 +15,40 @@ By the end of this activity, students will be able to:
 ## **Activity 1: Understanding Caching Concepts**
 
 ### **Theory Check**
+
 Before diving into implementation, answer these questions:
 
 1. **What is caching and why is it important?**
+
    - Write a 2-sentence explanation
+     => Caching is the process of storing frequently accessed data in a temporary storage layer (cache) to avoid repeatedly fetching or computing the same data. It's important because it significantly reduces server load, database queries, and response times, leading to faster application performance and better user experience.
+
    - List 3 benefits of caching
+     Improved Performance : Reduces page load times by serving pre-computed or pre-fetched data
+     Reduced Database Load : Minimizes expensive database queries and server resource consumption
+     Cost Efficiency : Lowers infrastructure costs by reducing the need for additional servers and database resources
 
 2. **What are the different types of caching?**
-   - Database query caching
-   - Template caching
-   - View caching
-   - Full-page caching
+
+- Database Query Caching : Stores results of database queries to avoid re-executing identical queries
+- Template Caching : Caches compiled template files to skip the template parsing/compilation process
+- View Caching : Stores the rendered output of views/pages for reuse without re-processing logic
+- Full-Page Caching : Caches entire HTML pages to serve them directly without any server-side processing
 
 3. **Cache Invalidation Challenge**
+
    - What problems can arise with stale cached data?
+     Users see outdated information (old prices, content, or data)
+     Inconsistent data across different parts of the application
+     Business logic errors when decisions are made based on old cached data
+     Security risks if permissions or access controls have changed
+
    - When should cache be cleared?
+     When underlying data is updated (CRUD operations)
+     After a specific time period (TTL - Time To Live expires)
+     When related data changes that affect cached content
+     During deployments with code/logic changes
+     Manual clearing when critical updates are needed
 
 **Expected Time:** 15 minutes
 
@@ -38,13 +59,14 @@ Before diving into implementation, answer these questions:
 ### **Step 1: Install Redis**
 
 **For macOS:**
+
 ```shell script
 brew install redis
 brew services start redis
 ```
 
-
 **For Ubuntu/Debian:**
+
 ```shell script
 sudo apt update
 sudo apt install redis-server
@@ -52,36 +74,37 @@ sudo systemctl start redis-server
 sudo systemctl enable redis-server
 ```
 
-
 **For Windows:**
+
 ```shell script
 # Use Windows Subsystem for Linux or Docker
 docker run -d -p 6379:6379 redis:alpine
 ```
 
-
 ### **Step 2: Verify Redis Installation**
+
 ```shell script
 redis-cli ping
 # Should return: PONG
 ```
 
-
 ### **Step 3: Update Requirements**
+
 Add to your `requirements.txt`:
+
 ```
 redis==5.0.1
 django-redis==5.4.0
 ```
 
-
 Install the new packages:
+
 ```shell script
 pip install redis django-redis
 ```
 
-
 ### **Checkpoint Questions:**
+
 - Can you connect to Redis?
 - Are the new packages installed?
 - What port is Redis running on?
@@ -95,11 +118,13 @@ pip install redis django-redis
 **Your Mission:** Add Redis cache configuration to `settings.py`
 
 **Hints:**
+
 - Look for the DATABASES section
 - Add a new CACHES dictionary
 - Use 'django_redis.cache.RedisCache' as backend
 
 **Template to complete:**
+
 ```python
 CACHES = {
     'default': {
@@ -116,9 +141,9 @@ CACHES = {
 CACHE_TTL = ___  # How many seconds?
 ```
 
-
 **Test Your Configuration:**
 Create a simple test in Django shell:
+
 ```python
 python manage.py shell
 
@@ -128,11 +153,19 @@ print(cache.get('test_key'))
 # Should print: Hello Cache!
 ```
 
-
 ### **Challenge Questions:**
+
 1. What happens if Redis is not running?
+   => My application will crash or throw errors when trying to use the cache.
+
 2. How would you use different Redis databases for different cache types?
+   => Better organization
+   Different timeout policies per cache type
+   Easy to clear specific cache types
+   Better debugging (know which cache has what)
+
 3. What's a reasonable default timeout for user data?
+   => 15-30 minutes is a reasonable default for most user data
 
 ---
 
@@ -141,9 +174,18 @@ print(cache.get('test_key'))
 ### **Task 1: Analyze Current UserViewSet**
 
 **Study the existing code** and identify:
+
 1. Which methods retrieve data from database?
+
+list() and retrieve() methods
+
 2. Which methods modify data?
+
+perform_create(), perform_update(), perform_destroy()
+
 3. What would be good cache keys?
+
+'user_list' (for list operations), and 'user_4' (for individual user operations)
 
 ### **Task 2: Add Caching to UserViewSet**
 
@@ -152,14 +194,15 @@ print(cache.get('test_key'))
 **Step-by-step Guide:**
 
 1. **Import required modules** (add to views.py):
+
 ```python
 from django.core.cache import cache
 from django.conf import settings
 from rest_framework.response import Response
 ```
 
-
 2. **Create cache key helper function:**
+
 ```python
 def get_cache_key(prefix, identifier=None):
     """Generate consistent cache keys"""
@@ -168,34 +211,34 @@ def get_cache_key(prefix, identifier=None):
     return prefix
 ```
 
-
 3. **Implement cached list method:**
 
 Fill in the blanks:
+
 ```python
 def list(self, request, *args, **kwargs):
     # Step 1: Create cache key
-    cache_key = get_cache_key('_____')  # What should go here?
-    
+    cache_key = get_cache_key('user_list')
+
     # Step 2: Try to get from cache
-    cached_data = cache._____(_______)  # Which method? What parameter?
-    
+    cached_data = cache.get(cache_key)  # Which method? What parameter?
+
     if cached_data is not None:
         return Response(cached_data)
-    
+
     # Step 3: Get fresh data
     response = super().list(request, *args, **kwargs)
-    
+
     # Step 4: Store in cache
-    cache._____(_____,_____, timeout=_____)  # Fill the blanks
-    
+    cache.set(cache_key, response.data, timeout=settings.CACHE_TTL) # Fill the blanks
+
     return response
 ```
-
 
 ### **Task 3: Test Your Implementation**
 
 1. **Create test data:**
+
 ```shell script
 python manage.py shell
 
@@ -203,23 +246,23 @@ from users.models import User
 User.objects.create_user(email='test@example.com', password='testpass', user_type='passenger')
 ```
 
-
 2. **Test the API:**
+
 ```shell script
 curl http://localhost:8000/api/users/
 # Run this twice - second call should be faster
 ```
 
-
 3. **Verify cache in Redis:**
+
 ```shell script
 redis-cli
 keys *
 get user_list  # or whatever key you used
 ```
 
-
 ### **Challenge:**
+
 - Add caching to the `retrieve()` method
 - What cache key would you use for individual users?
 
@@ -232,6 +275,7 @@ get user_list  # or whatever key you used
 **Scenario:** You cached user list, but then created a new user via admin. What happens?
 
 Test this:
+
 1. Make API call to get user list (cache it)
 2. Create new user in Django admin
 3. Make API call again - do you see the new user?
@@ -241,20 +285,20 @@ Test this:
 **Your Mission:** Clear cache when data changes
 
 **Template for create/update/delete methods:**
+
 ```python
 def perform_create(self, serializer):
     # Clear relevant caches
-    cache.delete('_____')  # What key?
+    cache.delete('user_list')
     super().perform_create(serializer)
 
 def perform_update(self, serializer):
     # Clear both list and individual caches
     user_id = serializer.instance.id
-    cache.delete('_____')  # List cache
-    cache.delete(f'user_{user_id}')  # Individual cache
+    cache.delete(get_cache_key('user_list'))
+    cache.delete(f'user_{user_id}')
     super().perform_update(serializer)
 ```
-
 
 ### **Task 3: Test Cache Invalidation**
 
@@ -265,6 +309,7 @@ def perform_update(self, serializer):
 ### **Advanced Challenge: Signal-Based Invalidation**
 
 Create `users/cache_signals.py`:
+
 ```python
 from django.core.cache import cache
 from django.db.models.signals import post_save, post_delete
@@ -274,21 +319,32 @@ from .models import User
 @receiver(post_save, sender=User)
 def invalidate_user_cache(sender, instance, **kwargs):
     # What caches should be cleared?
+    cache.delete('user_list')
+    if not created:
+        cache.delete(f'user_{instance.id}')
+
+    action = "created" if created else "updated"
+    logger.info(f"Cache invalidated for user {instance.id} ({action})")
     pass
 
-@receiver(post_delete, sender=User)  
+@receiver(post_delete, sender=User)
 def invalidate_user_cache_on_delete(sender, instance, **kwargs):
-    # What caches should be cleared?
+
+     cache.delete('user_list')
+
+     cache.delete(f'user_{instance.id}')
+
+     logger.info(f"Cache invalidated for deleted user {instance.id}")
+
     pass
 ```
 
-
 **Connect the signals in apps.py:**
+
 ```python
 def ready(self):
     import users.cache_signals
 ```
-
 
 ---
 
@@ -299,6 +355,7 @@ def ready(self):
 **Your Mission:** Track cache hit/miss ratios
 
 **Create a simple decorator:**
+
 ```python
 import functools
 import time
@@ -313,22 +370,21 @@ def cache_performance(cache_name):
             start_time = time.time()
             result = func(*args, **kwargs)
             end_time = time.time()
-            
+
             logger.info(f"{cache_name}: {end_time - start_time:.4f}s")
             return result
         return wrapper
     return decorator
 ```
 
-
 **Apply to your cached methods:**
+
 ```python
 @cache_performance("user_list_cache")
 def list(self, request, *args, **kwargs):
     # Your existing cached implementation
     pass
 ```
-
 
 ### **Task 2: Create Cache Statistics View**
 
@@ -350,10 +406,10 @@ def cache_stats(request):
     })
 ```
 
-
 ### **Task 3: Load Testing**
 
 **Create a simple load test script:**
+
 ```python
 # test_cache_performance.py
 import requests
@@ -361,17 +417,17 @@ import time
 
 def test_cache_performance():
     url = "http://localhost:8000/api/users/"
-    
+
     # First call (cache miss)
     start = time.time()
     response1 = requests.get(url)
     time1 = time.time() - start
-    
+
     # Second call (cache hit)
     start = time.time()
     response2 = requests.get(url)
     time2 = time.time() - start
-    
+
     print(f"First call: {time1:.4f}s")
     print(f"Second call: {time2:.4f}s")
     print(f"Speedup: {time1/time2:.2f}x")
@@ -380,7 +436,6 @@ if __name__ == "__main__":
     test_cache_performance()
 ```
 
-
 ---
 
 ## **Activity 7: Advanced Caching Patterns (25 minutes)**
@@ -388,27 +443,29 @@ if __name__ == "__main__":
 ### **Task 1: Cache-Aside vs Write-Through**
 
 **Implement cache-aside pattern** (what you've been doing):
+
 - Check cache first
 - If miss, get from DB and cache
 - Manual cache invalidation
 
 **Implement write-through pattern:**
+
 ```python
 def perform_update(self, serializer):
     super().perform_update(serializer)
-    
+
     # Write-through: immediately update cache
     user_data = self.get_serializer(serializer.instance).data
     cache_key = f"user_{serializer.instance.id}"
     cache.set(cache_key, user_data, timeout=settings.CACHE_TTL)
 ```
 
-
 ### **Task 2: Cache Warm-up**
 
 **Create management command** for cache warming:
 
 Create `users/management/commands/warm_cache.py`:
+
 ```python
 from django.core.management.base import BaseCommand
 from django.core.cache import cache
@@ -423,17 +480,16 @@ class Command(BaseCommand):
         users = User.objects.all()
         serializer = UserSerializer(users, many=True)
         cache.set('user_list', serializer.data, timeout=3600)
-        
+
         # Pre-cache individual users
         for user in users:
             user_data = UserSerializer(user).data
             cache.set(f'user_{user.id}', user_data, timeout=3600)
-        
+
         self.stdout.write(
             self.style.SUCCESS(f'Successfully cached {len(users)} users')
         )
 ```
-
 
 ### **Task 3: Cache Hierarchies**
 
@@ -455,7 +511,6 @@ def invalidate_by_tag(tag):
     cache.delete(f'tag_{tag}')
 ```
 
-
 ---
 
 ## **Activity 8: Production Considerations (15 minutes)**
@@ -463,11 +518,13 @@ def invalidate_by_tag(tag):
 ### **Discussion Points:**
 
 1. **Cache Size Limits**
+
    - What happens when cache fills up?
    - LRU eviction policies
    - Memory monitoring
 
 2. **Cache Distribution**
+
    - Single Redis vs Redis Cluster
    - Cache consistency across multiple servers
    - Failover strategies
@@ -480,6 +537,7 @@ def invalidate_by_tag(tag):
 ### **Task: Production Configuration**
 
 **Create production cache settings:**
+
 ```python
 # settings/production.py
 if os.environ.get('REDIS_CLUSTER_URL'):
@@ -496,7 +554,6 @@ if os.environ.get('REDIS_CLUSTER_URL'):
         }
     }
 ```
-
 
 ---
 
@@ -534,7 +591,7 @@ if os.environ.get('REDIS_CLUSTER_URL'):
 ### **Advanced Challenges:**
 
 1. **Implement cache versioning** to handle schema changes
-2. **Add cache compression** for large datasets  
+2. **Add cache compression** for large datasets
 3. **Create cache analytics dashboard**
 4. **Implement distributed cache locks** for concurrent updates
 5. **Add cache preloading** based on user behavior patterns
