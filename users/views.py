@@ -7,6 +7,10 @@ from django.conf import settings
 
 from users.models import User, Passenger, Rider
 from users.serializers import UserSerializer, PassengerSerializer, RiderSerializer
+from django.core.cache import cache
+from django.conf import settings
+from rest_framework.response import Response
+
 import functools
 import time
 import logging
@@ -32,11 +36,10 @@ def cache_performance(cache_name):
 
 
 def get_cache_key(prefix, identifier=None):
-    """Generate consistent cache keys for cache operations"""
+    """Generate consistent cache keys"""
     if identifier:
         return f"{prefix}_{identifier}"
     return prefix
-
 
 # Create your views here.
 

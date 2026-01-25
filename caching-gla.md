@@ -176,8 +176,16 @@ print(cache.get('test_key'))
 **Study the existing code** and identify:
 
 1. Which methods retrieve data from database?
+
+list() and retrieve() methods
+
 2. Which methods modify data?
+
+perform_create(), perform_update(), perform_destroy()
+
 3. What would be good cache keys?
+
+'user_list' (for list operations), and 'user_4' (for individual user operations)
 
 ### **Task 2: Add Caching to UserViewSet**
 
@@ -210,10 +218,10 @@ Fill in the blanks:
 ```python
 def list(self, request, *args, **kwargs):
     # Step 1: Create cache key
-    cache_key = get_cache_key('_____')  # What should go here?
+    cache_key = get_cache_key('user_list')
 
     # Step 2: Try to get from cache
-    cached_data = cache._____(_______)  # Which method? What parameter?
+    cached_data = cache.get(cache_key)  # Which method? What parameter?
 
     if cached_data is not None:
         return Response(cached_data)
@@ -222,7 +230,7 @@ def list(self, request, *args, **kwargs):
     response = super().list(request, *args, **kwargs)
 
     # Step 4: Store in cache
-    cache._____(_____,_____, timeout=_____)  # Fill the blanks
+    cache.set(cache_key, response.data, timeout=settings.CACHE_TTL) # Fill the blanks
 
     return response
 ```
