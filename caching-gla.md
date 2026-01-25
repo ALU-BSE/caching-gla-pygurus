@@ -156,8 +156,16 @@ print(cache.get('test_key'))
 ### **Challenge Questions:**
 
 1. What happens if Redis is not running?
+   => My application will crash or throw errors when trying to use the cache.
+
 2. How would you use different Redis databases for different cache types?
+   => Better organization
+   Different timeout policies per cache type
+   Easy to clear specific cache types
+   Better debugging (know which cache has what)
+
 3. What's a reasonable default timeout for user data?
+   => 15-30 minutes is a reasonable default for most user data
 
 ---
 
