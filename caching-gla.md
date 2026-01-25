@@ -289,14 +289,14 @@ Test this:
 ```python
 def perform_create(self, serializer):
     # Clear relevant caches
-    cache.delete('_____')  # What key?
+    cache.delete('user_list')
     super().perform_create(serializer)
 
 def perform_update(self, serializer):
     # Clear both list and individual caches
     user_id = serializer.instance.id
-    cache.delete('_____')  # List cache
-    cache.delete(f'user_{user_id}')  # Individual cache
+    cache.delete(get_cache_key('user_list'))
+    cache.delete(f'user_{user_id}')
     super().perform_update(serializer)
 ```
 
@@ -319,11 +319,23 @@ from .models import User
 @receiver(post_save, sender=User)
 def invalidate_user_cache(sender, instance, **kwargs):
     # What caches should be cleared?
+    cache.delete('user_list')
+    if not created:
+        cache.delete(f'user_{instance.id}')
+
+    action = "created" if created else "updated"
+    logger.info(f"Cache invalidated for user {instance.id} ({action})")
     pass
 
 @receiver(post_delete, sender=User)
 def invalidate_user_cache_on_delete(sender, instance, **kwargs):
-    # What caches should be cleared?
+
+     cache.delete('user_list')
+
+     cache.delete(f'user_{instance.id}')
+
+     logger.info(f"Cache invalidated for deleted user {instance.id}")
+
     pass
 ```
 
